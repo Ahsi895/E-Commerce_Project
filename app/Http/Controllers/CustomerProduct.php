@@ -7,7 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Cart;
 use Session;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 
 class CustomerProduct extends Controller
@@ -38,23 +38,77 @@ class CustomerProduct extends Controller
     }
     public function addToCart(Request $request)
     {
-        $ids = explode('_', request('ids'));
-        $cart = new Cart;
-        $cart->pro_id = $ids[0];
-        $cart->user_id = $ids[1];
-        $cart->save();
-        return redirect('/');
+        $id = $request->input('product_id');
+        $product = Product::findOrFail($id);
+        $quantity = $request->input('quantity');
+        $userId = auth()->user()->user_id;
+
+        $userKey = 'user_cart_' . $userId;
+
+        $cart = Cache::get($userKey, []);
+
+        if (isset($cart[$id])) {
+            $cart[$id]['quantity'] += $quantity;
+        } else {
+            $cart[$id] = [
+                "id" => $id,
+                "name" => $product->pro_name,
+                "quantity" => $quantity,
+                "price" => $product->price,
+                "details" => $product->details,
+                "image" => $product->image
+            ];
+        }
+
+        Cache::put($userKey, $cart, now()->addHours(1));
+
+        
+
+        $success = 'Product added to the cart successfully!';
+        return response()->json(['message' => $success]);
     }
+    public function count()
+    {
+        $userId = auth()->user()->user_id;   
+        $userKey = 'user_cart_' . $userId;
+        $cart = Cache::get($userKey, []);
+        $cartCount = count($cart);
+        // dd($cartCount);
+        return view('layouts.app', compact('cartCount'));
+    }
+
+    public function getCartProducts()
+    {
+        $userKey = 'user_cart_' . auth()->user()->user_id;
+        $cart = Cache::get($userKey);
+
+        if (empty($cart)) {
+            $cart = [];
+        }
+
+        if (!empty($cart)) {
+            $productIds = array_keys($cart);
+            $products = Product::whereIn('pro_id', $productIds)->get();
+
+            foreach ($products as $product) {
+                $product->quantity = $cart[$product->pro_id]['quantity'];
+            }
+        } else {
+            $products = [];
+        }
+
+        return $products;
+    }
+
     public function CartList()
     {
-        $user_id = Session::get('user')['user_id'];
-        $products = DB::table('cart')
-            ->join('products', 'cart.pro_id', '=', 'products.pro_id')
-            ->select('products.*')
-            ->where('cart.user_id', $user_id)
-            ->get();
+        $products = $this->getCartProducts();
+        // dd($products);
         return view('CustomerPanel.CartList', compact('products'));
     }
+
+
+
 
     public function show($cat_id)
     {
@@ -69,19 +123,30 @@ class CustomerProduct extends Controller
     }
     public function removeFromCart(Request $request)
     {
-        $product_id = $request->input('pro_id');
+        if ($request->pro_id) {
+            $userId = auth()->user()->user_id;
 
-        Cart::where('pro_id', $product_id)->delete();
+            $userKey = 'user_cart_' . $userId;
 
-        return redirect()->back()->with('success', 'Product removed from the cart.');
+            $cart = Cache::get($userKey, []);
+
+            if (isset($cart[$request->pro_id])) {
+                unset($cart[$request->pro_id]);
+
+                Cache::put($userKey, $cart, now()->addHours(1));
+
+                session()->flash('success', 'Product removed successfully');
+                return redirect('/CartList');
+            }
+        }
     }
+
+
     public function proceedToPayment()
     {
-        $user = Auth::user(); 
-        $cartProducts = Cart::with('product')->where('user_id', $user->user_id)->get();
-
-        // return dd($user);
-        return view('CustomerPanel.proceedToPayment', compact('user', 'cartProducts'));
+        $user = Auth::user();
+        $products = $this->getCartProducts();
+        return view('CustomerPanel.proceedToPayment', compact('user', 'products'));
     }
 
 

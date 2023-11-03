@@ -87,22 +87,39 @@
             <span class="input-group-btn">
                 
             </span>
-            <input style="width: 55px" type="number" class="form-control text-center" placeholder="Quantity" value="1" id="quantity">
+            
             <span class="input-group-btn">
             </span>
-        </div><br><br>
+        </div>
         
-        <form action="/addToCart" method="POST">
-        @php
-            $users = App\Models\User::all();
-        @endphp
-            <input type="hidden" name="ids" value="{{ $product->pro_id }}_{{ Auth::user()->user_id }}">
+        <form id="addToCartForm" action="{{ route('addToCart') }}" method="POST">
             @csrf
+            <input type="hidden" name="product_id" value="{{ $product->pro_id }}">
+            <input type="hidden" name="user_id" value="{{ Auth::user()->user_id }}">
+            <input style="width: 55px" type="number" class="form-control text-center" name="quantity" placeholder="Quantity" value="1" id="quantity">
+            <br>
             <button class="btn btn-success">Add to Cart</button>
-        </form><br><br>
+        </form>
+        <br><br>
         <button class="btn btn-primary">Buy Now</button>
     </div>
     <br>
+    <script>
+        document.getElementById('addToCartForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            
+            // Submit the form data via AJAX
+            $.ajax({
+                type: 'POST',
+                url: $(this).attr('action'),
+                data: $(this).serialize(),
+                success: function (response) {
+                    alert(response.message); 
+                },
+            });
+        });
+    </script>
+    
     @include('footer');
 </body>
 </html>

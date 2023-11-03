@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
+use App\Http\Controllers\AbandonedCartController;
 
 class LoginController extends Controller
 {
@@ -43,7 +44,8 @@ class LoginController extends Controller
     protected function authenticated(Request $request, $user)
     {
         $request->session()->put('user', $user);
-        
+        $abandonedCartController = new AbandonedCartController;
+        $response = $abandonedCartController->cartshownToCustomer($request);
     }
 
 }

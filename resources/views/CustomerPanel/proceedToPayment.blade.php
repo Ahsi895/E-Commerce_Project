@@ -39,21 +39,25 @@
             <tr>
                 <th>Product</th>
                 <th>Price</th>
+                <th>Quantity</th>
                 <th>Description</th>
                 <th>Image</th>
             </tr>
         </thead>
         <tbody>
-            @foreach ($cartProducts as $cartProduct)
-                <tr>
-                    <td>{{ $cartProduct->product->pro_name }}</td>
-                    <td>${{ $cartProduct->product->price }}</td>
-                    <td>{{ $cartProduct->product->details }}</td>
-                    <td>
-                        <img src="{{ asset($cartProduct->product->image) }}" alt="{{ $cartProduct->product->pro_name }}" style="width: 100px; height: 100px;">
-                    </td>
-                </tr>
-            @endforeach
+        @if(count($products) > 0)
+            @foreach($products as $item)
+                        <tr>
+                            <td>{{ $item->pro_name }}</td>
+                            <td>${{ $item->price }}</td>
+                            <td>{{ $item->quantity }}</td>
+                            <td>{{ $item->details }}</td>
+                            <td>
+                                <img src="{{ asset($item->image) }}" alt="{{ $item->pro_name }}" style="width: 100px; height: 100px;">
+                            </td>
+                        </tr>
+                    @endforeach
+                @endif
         </tbody>
     </table><br>
     <div class="container">
@@ -85,24 +89,45 @@
             
         </div><br>
         <div >
-            @php
-                $total = 0;
-            @endphp
-        
-            @foreach($cartProducts as $item)
+            @if(count($products) > 0)
                 @php
-                    $total += $item->product->price;
+                    $totalAmount = 0;
+                    $totalQuantity = 0;
                 @endphp
-            @endforeach
-        
-                <h3 name="total">Total Amount: ${{ $total }}</h3>
+
+                @foreach($products as $product)
+                    @php
+                        $subTotal = $product->price * $product->quantity;
+                        $totalAmount += $subTotal;
+                        $totalQuantity += $product->quantity;
+                    @endphp
+                @endforeach
+
+            @endif
+                <h3>Total Quantity: {{ $totalQuantity }}</h3>
+                <h3 name="total">Total Amount: ${{ $totalAmount }}</h3>
+                @if(session()->has('coupon'))
+                <h3>Coupoun: {{ session('coupon.name') }}</h3>
+                <h3>Discount: -{{ session()->get('coupon')['discount'] }}</h3>
+                <h3>New Total: {{ session('coupon.newTotal') }}</h3>
+                @endif
+            
                 
             </div>
+            <a href="#" class="have-code">Have a Code?</a>
+        <div class="have-code-container">
+            <form method="POST" action="{{ route('coupon.store') }}">
+                @csrf
+                <input type="text" name="coupon_code" id="coupon_code">
+                <input type="hidden" name="totalAmount" value="{{ $totalAmount }}">
+                <button type="submit" class="button button-plain">Apply</button>
+            </form>
+        </div>
     
             <div class="text-center mt-4">
                 <form id="confirmOrderForm" method="post" action="{{ route('saveOrder') }}">
                     @csrf
-                    <input type="hidden" name="total" value="{{ $total }}">
+                    <input type="hidden" name="totalAmount" value="{{ session('coupon.newTotal') }}">
                     <input type="hidden" name="address" value="{{ $user->address }}">
                     <button type="submit" class="btn btn-success" id="confirmOrderButton">Confirm Order</button>
                 </form>

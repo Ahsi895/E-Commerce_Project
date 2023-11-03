@@ -6,57 +6,90 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Cart;
 use App\Models\Product;
+use App\Models\OrderItem;
+use App\Http\Controllers\CustomerProduct;
+
 
 
 
 class OrderController extends Controller
 {
+    public $customerProduct;
+
+    public function __construct(CustomerProduct $customerProduct)
+    {
+        $this->customerProduct = $customerProduct;
+    }
     public function saveOrder(Request $request)
     {
-        // $pro = $request->input('pro_id');
-        // return $pro;
-        // die;
-
-        $user = auth()->user()->user_id;
-        $cartProducts = Cart::where('user_id', $user)->pluck('pro_id')->all();
-
+        $totalAmount = $request->input('totalAmount');
+        $address = $request->input('address');
+        $user_id = auth()->user()->user_id;
 
         $order = new Order();
-        $order->user_id = auth()->user()->user_id;
-        // $order->pro_id = auth()->user()->user_id;
-        $order->products_id = json_encode($cartProducts);
-        $order->address = $request->input('address');
-        Cart::where('user_id', $user)->delete();
-        $order->amount = $request->input('total');
-
-
+        $order->user_id = $user_id;
+        $order->address = $address;
+        $order->amount = $totalAmount;
         $order->save();
-        return view('CustomerPanel.success');
-    }
-    public function orderHistory()
-    {
-        $user = auth()->user();
-        $orderIds = Order::where('user_id', $user->user_id)->pluck('products_id');
 
-        $orderedProducts = collect();
+        $cart = $this->customerProduct->getCartProducts();
 
-        foreach ($orderIds as $ids) {
-            $productIds = json_decode($ids);
-            echo $productIds;
-            if (!empty($productIds)) {
-                $products = Product::whereIn('pro_id', $productIds)->get();
-                $orderedProducts = $orderedProducts->concat($products);
-            }
+        foreach ($cart as $product) {
+            $orderItem = new OrderItem();
+            $orderItem->order_id = $order->order_id;
+            $orderItem->pro_id = $product->pro_id;
+            $orderItem->quantity = $product->quantity;
+            $orderItem->save();
         }
-
-        return view('CustomerPanel.history', ['orderedProducts' => $orderedProducts]);
+        // dd($order->order_id);
+        return redirect()->route('orderConfirmation', ['order_id' => $order->order_id]);
     }
-    public function dashboard()
+
+    public function orderConfirmation()
     {
-        $totalOrders = Order::count(); 
+        $user_id =  auth()->user()->user_id;
+        $order = Order::with('orderItems.product')->where('user_id', $user_id)->get();
+        // dd($order);
+        return view('CustomerPanel.orderConfirmation', compact('order'));
+    }
+
+
+
+    public function totalOrders()
+    {
+        $totalOrders = Order::count();
         // dd($totalOrders);
-        
         return view('products.dashboard', ['totalOrders' => $totalOrders]);
     }
+    public function totalRevenue()
+    {
+        $orders = Order::all();
+        $totalRevenue = $orders->sum('amount');
+        // dd($totalRevenue);
+        return view('products.dashboard', compact('totalRevenue'));
+    }
+
+    public function viewOrders()
+    {
+        $orders = Order::all();
+        return view('viewOrders', compact('orders'));
+    }
+    public function orderStatus(Request $request)
+    {
+        $orderID = $request->input('orderID');
+        $status = $request->input('status');
+        // dd($status);
+        $order = Order::find($orderID);
+
+        if (!$order) {
+            return "Order not found";
+        }
+
+        $order->status = $status;
+        $order->save();
+
+        return redirect()->back()->with('success', 'Order status updated successfully');
+    }
+
 
 }
